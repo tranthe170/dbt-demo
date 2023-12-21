@@ -1,0 +1,20 @@
+version: 2
+
+sources:
+  - name: shopee
+    schema: shopee
+    tables:
+      - name: escrow
+        identifier: _airbyte_raw_escrow
+
+      - name: order
+        identifier: _airbyte_raw_order
+
+      - name: product
+        identifier: _airbyte_raw_product
+
+      - name: return
+        identifier: _airbyte_raw_return
+
+      - name: wallet_transaction
+        identifier: _airbyte_raw_wallet_transaction
