@@ -1,0 +1,17 @@
+config:
+  partial_parse: true
+  printer_width: 120
+  send_anonymous_usage_stats: false
+  use_colors: true
+dbt_demo:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: on-premise-de.onhandbi.com
+      user: de
+      password: 0hbide@1710
+      port: 25432
+      dbname: leonardo
+      schema: shopee
+      threads: 8
