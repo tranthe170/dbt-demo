@@ -51,7 +51,6 @@ new_data_ids as (
     -- build a subset of _AIRBYTE_UNIQUE_KEY from rows that are new
     select distinct
         {{ dbt_utils.surrogate_key([
-            'escrow_release_time',
             'order_sn',
         ]) }} as _AIRBYTE_UNIQUE_KEY
     from new_data
@@ -86,7 +85,6 @@ input_data as (
 scd_data as (
     select
       {{ dbt_utils.surrogate_key([
-            'escrow_release_time',
             'order_sn',
         ]) }} as _AIRBYTE_UNIQUE_KEY,
         order_sn, coins, order_items, escrow_tax, service_fee,

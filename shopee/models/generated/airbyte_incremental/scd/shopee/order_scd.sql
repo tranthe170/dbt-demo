@@ -51,7 +51,6 @@ new_data_ids as (
     -- build a subset of _AIRBYTE_UNIQUE_KEY from rows that are new
     select distinct
         {{ dbt_utils.surrogate_key([
-            'create_time',
             'order_sn',
         ]) }} as _AIRBYTE_UNIQUE_KEY
     from new_data
@@ -86,7 +85,6 @@ input_data as (
 scd_data as (
     select
       {{ dbt_utils.surrogate_key([
-            'create_time',
             'order_sn',
         ]) }} as _AIRBYTE_UNIQUE_KEY,
         cod, note, region, currency, order_sn, pay_time, split_up, cancel_by,
@@ -98,19 +96,19 @@ scd_data as (
         recipient_region, recipient_zipcode, recipient_district, recipient_full_address,
         actual_shipping_fee, buyer_cancel_reason, reverse_shipping_fee, estimated_shipping_fee,
         actual_shipping_fee_confirmed,
-        create_time as _AIRBYTE_START_AT,
-      lag(create_time) over (
-        partition by create_time, order_sn
+        update_time as _AIRBYTE_START_AT,
+      lag(update_time) over (
+        partition by update_time, order_sn
         order by
-            create_time is null asc,
-            create_time desc,
+            update_time is null asc,
+            update_time desc,
             _AIRBYTE_EMITTED_AT desc
       ) as _AIRBYTE_END_AT,
       case when row_number() over (
-        partition by create_time, order_sn
+        partition by update_time, order_sn
         order by
-            create_time is null asc,
-            create_time desc,
+            update_time is null asc,
+            update_time desc,
             _AIRBYTE_EMITTED_AT desc
       ) = 1 then 1 else 0 end as _AIRBYTE_ACTIVE_ROW,
       _AIRBYTE_AB_ID,

@@ -12,7 +12,7 @@ select {{
 ])
 }} as _AIRBYTE_WALLET_TRANSACTION_HASHID,
     tmp.*
-from {{ref('wallet_transaction')}} tmp
+from {{ref('wallet_transaction_ab')}} tmp
 
 where 1 = 1
 {{ incremental_clause('_AIRBYTE_EMITTED_AT', this) }}

@@ -31,7 +31,7 @@ select {{
 }} as _AIRBYTE_ESCROW_HASHID,
     tmp.*
 
-from {{ref('escrow')}} tmp
+from {{ref('escrow_ab')}} tmp
 
 where 1 = 1
 {{ incremental_clause('_AIRBYTE_EMITTED_AT', this) }}

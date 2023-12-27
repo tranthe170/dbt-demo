@@ -18,7 +18,7 @@ select {{
 ])
 }} as _AIRBYTE_ORDER_HASHID,
     tmp.*
-from {{ref('order')}} tmp
+from {{ref('order_ab')}} tmp
 
 where 1 = 1
 {{ incremental_clause('_AIRBYTE_EMITTED_AT', this) }}

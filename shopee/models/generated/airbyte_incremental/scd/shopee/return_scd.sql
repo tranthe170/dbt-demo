@@ -6,7 +6,7 @@
                     set final_table_relation = adapter.get_relation(
                             database=this.database,
                             schema=this.schema,
-                            identifier='wallet_transaction'
+                            identifier='return'
                         )
                     %}
                     {%
@@ -17,12 +17,12 @@
                         from (
                                 select distinct _AIRBYTE_UNIQUE_KEY as unique_key
                                 from {{ this }}
-                                where 1=1 {{ incremental_clause('_AIRBYTE_NORMALIZED_AT', adapter.quote(this.schema) + '.' + adapter.quote('wallet_transaction')) }}
+                                where 1=1 {{ incremental_clause('_AIRBYTE_NORMALIZED_AT', adapter.quote(this.schema) + '.' + adapter.quote('return')) }}
                             ) recent_records
                             left join (
                                 select _AIRBYTE_UNIQUE_KEY as unique_key, count(_AIRBYTE_UNIQUE_KEY) as active_count
                                 from {{ this }}
-                                where _AIRBYTE_ACTIVE_ROW = 1 {{ incremental_clause('_AIRBYTE_NORMALIZED_AT', adapter.quote(this.schema) + '.' + adapter.quote('wallet_transaction')) }}
+                                where _AIRBYTE_ACTIVE_ROW = 1 {{ incremental_clause('_AIRBYTE_NORMALIZED_AT', adapter.quote(this.schema) + '.' + adapter.quote('return')) }}
                                 group by _AIRBYTE_UNIQUE_KEY
                             ) active_counts
                             on recent_records.unique_key = active_counts.unique_key
@@ -32,7 +32,7 @@
                     -- We have to have a non-empty query, so just do a noop delete
                     delete from {{ this }} where 1=0
                     {% endif %}
-                    ","drop view shopee.wallet_transaction_stg"],
+                    ","drop view shopee.return_stg"],
     tags = [ "top-level" ]
 ) }}
 
@@ -43,7 +43,7 @@ new_data as (
     -- retrieve incremental "new" data
     select
         *
-    from {{ ref('wallet_transaction_stg')  }}
+    from {{ ref('return_stg')  }}
     where 1 = 1
     {{ incremental_clause('_AIRBYTE_EMITTED_AT', this) }}
 ),
@@ -51,8 +51,7 @@ new_data_ids as (
     -- build a subset of _AIRBYTE_UNIQUE_KEY from rows that are new
     select distinct
         {{ dbt_utils.surrogate_key([
-            'create_time',
-            'transaction_id',
+            'return_sn',
         ]) }} as _AIRBYTE_UNIQUE_KEY
     from new_data
 ),
@@ -63,7 +62,7 @@ empty_new_data as (
 previous_active_scd_data as (
     -- retrieve "incomplete old" data that needs to be updated with an end date because of new changes
     select
-        {{ star_intersect(ref('wallet_transaction_stg'), this, from_alias='inc_data', intersect_alias='this_data') }}
+        {{ star_intersect(ref('return_stg'), this, from_alias='inc_data', intersect_alias='this_data') }}
     from {{ this }} as this_data
     -- make a join with new_data using primary key to filter active data that need to be updated only
     join new_data_ids on this_data._AIRBYTE_UNIQUE_KEY = new_data_ids._AIRBYTE_UNIQUE_KEY
@@ -72,44 +71,48 @@ previous_active_scd_data as (
     where _AIRBYTE_ACTIVE_ROW = 1
 ),
 input_data as (
-    select {{ dbt_utils.star(ref('wallet_transaction_stg')) }} from new_data
+    select {{ dbt_utils.star(ref('return_stg')) }} from new_data
     union all
-    select {{ dbt_utils.star(ref('wallet_transaction_stg')) }} from previous_active_scd_data
+    select {{ dbt_utils.star(ref('return_stg')) }} from previous_active_scd_data
 ),
 {% else %}
 input_data as (
     select *
-    from {{ ref('wallet_transaction_stg')  }}
+    from {{ ref('return_stg')  }}
 ),
 {% endif %}
 
 scd_data as (
     select
       {{ dbt_utils.surrogate_key([
-            'create_time',
-            'transaction_id',
+            'return_sn',
         ]) }} as _AIRBYTE_UNIQUE_KEY,
-        amount, reason, status, order_sn, refund_sn, buyer_name, create_time, wallet_type,
-        withdrawal_id, transaction_id, current_balance, transaction_fee, withdrawal_type, transaction_type,
-        root_withdrawal_id,
+        return_items, user_email, user_portrait, username, image_return, reason, status, activity,
+        currency, due_date, order_sn, return_sn, create_time, negotiation_counter_limit, negotiation_offer_due_date,
+        negotiation_latest_solution, negotiation_status, negotiation_latest_offer_amount, negotiation_latest_offer_creator,
+        text_reason, update_time, seller_proof_status, seller_evidence_deadline, refund_amount, needs_logistics,
+        tracking_number, logistics_status, seller_compensation_amount, seller_compensation_status,
+        seller_compensation_due_date, return_ship_due_date, return_pickup_city, return_pickup_name, return_pickup_town,
+        return_pickup_phone, return_pickup_state, return_pickup_region, return_pickup_address, return_pickup_zipcode,
+        return_pickup_district, amount_before_discount, return_seller_due_date,
         create_time as _AIRBYTE_START_AT,
-      lag(create_time) over (
-        partition by create_time, transaction_id
+      lag(update_time) over (
+        partition by update_time, return_sn
         order by
-            create_time is null asc,
-            create_time desc,
+            update_time is null asc,
+            update_time desc,
             _AIRBYTE_EMITTED_AT desc
       ) as _AIRBYTE_END_AT,
       case when row_number() over (
-        partition by create_time, transaction_id
+        partition by update_time, return_sn
         order by
-            create_time is null asc,
-            create_time desc,
+            update_time is null asc,
+            update_time desc,
             _AIRBYTE_EMITTED_AT desc
       ) = 1 then 1 else 0 end as _AIRBYTE_ACTIVE_ROW,
       _AIRBYTE_AB_ID,
       _AIRBYTE_EMITTED_AT,
-      _AIRBYTE_WALLET_TRANSACTION_HASHID
+      _AIRBYTE_RETURN_HASHID
     from input_data
 ),
 dedup_data as (
@@ -134,14 +137,19 @@ dedup_data as (
 select
     _AIRBYTE_UNIQUE_KEY,
     _AIRBYTE_UNIQUE_KEY_SCD,
-    amount, reason, status, order_sn, refund_sn, buyer_name, create_time, wallet_type,
-    withdrawal_id, transaction_id, current_balance, transaction_fee, withdrawal_type, transaction_type,
-    root_withdrawal_id,
+    return_items, user_email, user_portrait, username, image_return, reason, status, activity,
+    currency, due_date, order_sn, return_sn, create_time, negotiation_counter_limit, negotiation_offer_due_date,
+    negotiation_latest_solution, negotiation_status, negotiation_latest_offer_amount, negotiation_latest_offer_creator,
+    text_reason, update_time, seller_proof_status, seller_evidence_deadline, refund_amount, needs_logistics,
+    tracking_number, logistics_status, seller_compensation_amount, seller_compensation_status,
+    seller_compensation_due_date, return_ship_due_date, return_pickup_city, return_pickup_name, return_pickup_town,
+    return_pickup_phone, return_pickup_state, return_pickup_region, return_pickup_address, return_pickup_zipcode,
+    return_pickup_district, amount_before_discount, return_seller_due_date,
     _AIRBYTE_START_AT,
     _AIRBYTE_END_AT,
     _AIRBYTE_ACTIVE_ROW,
     _AIRBYTE_AB_ID,
     _AIRBYTE_EMITTED_AT,
     {{ current_timestamp() }} as _AIRBYTE_NORMALIZED_AT,
-    _AIRBYTE_WALLET_TRANSACTION_HASHID
+    _AIRBYTE_RETURN_HASHID
 from dedup_data where _AIRBYTE_ROW_NUM = 1
